@@ -1,0 +1,12 @@
+{
+  "resource": "https://agent.robinhood.com/mcp/trading",
+  "authorization_servers": [
+    "https://agent.robinhood.com/mcp/trading"
+  ],
+  "scopes_supported": [
+    "internal"
+  ],
+  "bearer_methods_supported": [
+    "header"
+  ]
+}

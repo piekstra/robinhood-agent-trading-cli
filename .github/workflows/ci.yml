@@ -1,0 +1,87 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+# A new push to the same ref makes the older run's result worthless — don't pay
+# for it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: fmt / clippy / test / build
+    # Linux, not macOS. This is a private repo, so runner minutes are billed
+    # directly and macOS costs ~10x Linux. Nothing in the gate is
+    # platform-specific: the whole test suite is offline (no network, no
+    # keychain, no live MCP), and the one OS-coupled dependency — `keyring` via
+    # pk-cli-secrets — has a Linux backend that compiles against libdbus, so the
+    # build and clippy still typecheck the keychain code path here.
+    #
+    # COVERAGE GAP, deliberate: the *runtime* behaviour of the apple-native
+    # keychain backend (Security.framework prompts, "Always Allow" grants scoped
+    # to the code signature) and the live OAuth/MCP round trip are never
+    # exercised in CI. They're covered by local dogfooding through the signed
+    # binary instead — see AGENTS.md.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Install keyring build deps
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --all
+      - run: cargo build --release
+      # The dry-run surface end to end through the built binary. Offline; the
+      # signing step in `make release` is a no-op where dev-sign.sh is absent.
+      - run: make smoke
+
+  security:
+    name: audit / deny / secrets
+    runs-on: ubuntu-latest
+    # gitleaks-action calls the PR API to enumerate the commits to scan, and
+    # cargo-audit posts advisory annotations. Without these the job dies with
+    # "Resource not accessible by integration" — but only on pull_request
+    # events, since a push carries its commits in the payload. Declared here so
+    # the first PR against this repo doesn't fail for a permissions reason
+    # dressed up as a secret-scanning failure.
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+      checks: write # rustsec/audit-check publishes a check run; without this it dies with "Resource not accessible by integration"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        # Pinned by SHA, so the toolchain cannot come from the ref name.
+        with:
+          toolchain: stable
+      - name: cargo-audit
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          command: check
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,13 @@
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"accounts\":[{\"account_number\":\"SAMPLE01\",\"type\":\"individual\",\"agentic_allowed\":true}]}"
+      }
+    ],
+    "isError": false
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "client_id": "sample-client-id-000000",
+  "client_id_issued_at": 1756300000,
+  "redirect_uris": [
+    "http://127.0.0.1:0/callback"
+  ],
+  "token_endpoint_auth_method": "none",
+  "grant_types": [
+    "authorization_code",
+    "refresh_token"
+  ],
+  "response_types": [
+    "code"
+  ],
+  "scope": "internal",
+  "client_name": "rhap (Robinhood Agentic Passthrough)"
+}

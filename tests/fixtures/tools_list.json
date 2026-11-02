@@ -1,0 +1,307 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "get_accounts",
+        "description": "List the linked brokerage accounts.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "get_equity_positions",
+        "description": "List equity positions for one account.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "account_number": {
+              "type": "string"
+            },
+            "cursor": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "account_number"
+          ]
+        }
+      },
+      {
+        "name": "get_equity_orders",
+        "description": "List equity orders.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "account_number": {
+              "type": "string"
+            },
+            "created_at_gte": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "account_number"
+          ]
+        }
+      },
+      {
+        "name": "get_equity_quotes",
+        "description": "Quote one or more equity symbols.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "symbols": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "symbols"
+          ]
+        }
+      },
+      {
+        "name": "review_equity_order",
+        "description": "Preview an equity order before placing it.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "account_number": {
+              "type": "string"
+            },
+            "symbol": {
+              "type": "string"
+            },
+            "side": {
+              "type": "string"
+            },
+            "quantity": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "place_equity_order",
+        "description": "Place an equity order on the funded Agentic account.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "account_number": {
+              "type": "string"
+            },
+            "symbol": {
+              "type": "string"
+            },
+            "side": {
+              "type": "string"
+            },
+            "quantity": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "limit_price": {
+              "type": "string"
+            },
+            "time_in_force": {
+              "type": "string"
+            },
+            "market_hours": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "account_number",
+            "symbol",
+            "side",
+            "type"
+          ]
+        }
+      },
+      {
+        "name": "cancel_equity_order",
+        "description": "Cancel an equity order by id.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "account_number": {
+              "type": "string"
+            },
+            "order_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "account_number",
+            "order_id"
+          ]
+        }
+      },
+      {
+        "name": "get_option_positions",
+        "description": "List option positions for one account.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "account_number": {
+              "type": "string"
+            },
+            "nonzero": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "account_number"
+          ]
+        }
+      },
+      {
+        "name": "get_option_orders",
+        "description": "List option orders for one account.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "account_number": {
+              "type": "string"
+            },
+            "created_at_gte": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string"
+            },
+            "placed_agent": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "account_number"
+          ]
+        }
+      },
+      {
+        "name": "get_option_quotes",
+        "description": "Quote option instruments by id.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "instrument_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "instrument_ids"
+          ]
+        }
+      },
+      {
+        "name": "get_option_chains",
+        "description": "Resolve option chains for an underlying.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "underlying_symbol": {
+              "type": "string"
+            },
+            "ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "review_option_order",
+        "description": "Preview an option order before placing it.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "account_number": {
+              "type": "string"
+            },
+            "legs": {
+              "type": "array"
+            },
+            "quantity": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "account_number",
+            "legs",
+            "quantity"
+          ]
+        }
+      },
+      {
+        "name": "place_option_order",
+        "description": "Place an option order on the funded Agentic account.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "account_number": {
+              "type": "string"
+            },
+            "legs": {
+              "type": "array"
+            },
+            "quantity": {
+              "type": "string"
+            },
+            "direction": {
+              "type": "string"
+            },
+            "price": {
+              "type": "string"
+            },
+            "time_in_force": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "market_hours": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "account_number",
+            "legs",
+            "quantity"
+          ]
+        }
+      },
+      {
+        "name": "cancel_option_order",
+        "description": "Cancel an option order by id.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "account_number": {
+              "type": "string"
+            },
+            "order_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "account_number",
+            "order_id"
+          ]
+        }
+      }
+    ]
+  }
+}

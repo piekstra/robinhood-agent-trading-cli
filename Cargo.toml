@@ -1,0 +1,46 @@
+[package]
+name = "robinhood-agent-trading-cli"
+description = "Deterministic passthrough CLI for Robinhood's official Agentic Trading MCP server (piekstra-cli/1). Write-capable: dry-run + confirm."
+version = "0.3.0"
+edition = "2021"
+# 1.89: `std::fs::File::lock` (the token-refresh lock in src/token_refresh.rs).
+rust-version = "1.89"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/piekstra/robinhood-agent-trading-cli"
+homepage = "https://github.com/piekstra/robinhood-agent-trading-cli"
+authors = ["piekstra"]
+publish = false
+
+[[bin]]
+name = "rhap"
+path = "src/main.rs"
+
+[dependencies]
+pk-cli-core = { git = "https://github.com/piekstra/cli-common", tag = "v0.7.0", features = ["reqwest"] }
+pk-cli-secrets = { git = "https://github.com/piekstra/cli-common", tag = "v0.7.0" }
+pk-cli-config = { git = "https://github.com/piekstra/cli-common", tag = "v0.7.0" }
+pk-cli-auth = { git = "https://github.com/piekstra/cli-common", tag = "v0.7.0" }
+pk-cli-http = { git = "https://github.com/piekstra/cli-common", tag = "v0.7.0" }
+
+clap = { version = "4", features = ["derive", "env"] }
+clap_complete = "4"
+serde = { version = "1", features = ["derive"] }
+# preserve_order keeps JSON object key order at insertion order, which is what
+# SPEC v1 §1.4 promises for both `output::kv` blocks and `table_view` columns.
+serde_json = { version = "1", features = ["preserve_order"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+
+# OAuth 2.1 + PKCE: SHA-256 code challenge, base64url, and CSPRNG for the
+# verifier/state. No `openssl` — rustls all the way down.
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+
+[profile.release]
+strip = true
+lto = true
+opt-level = "z"
