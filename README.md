@@ -26,8 +26,8 @@ except that `self-update` is deliberately absent (see AGENTS.md).
 
 ## Install
 
-Requires Rust **1.89** or newer (`rust-version` in `Cargo.toml`; the token
-refresh lock uses `std::fs::File::lock`).
+Requires Rust **1.89** or newer (`rust-version` in `Cargo.toml`; the shared
+token-refresh lock needs it).
 
 ```console
 $ make install     # cargo install --locked --path . + stable-identity code signing
@@ -149,7 +149,8 @@ including the `review_*`/`preview_*` simulations and `delete_alert`/
 
 `0` ok · `2` usage · `3` auth · `4` not found · `5` upstream · `6` confirmation
 required. Scripts can branch on `3` (log in) and `6` (a mutation needs
-confirmation).
+confirmation). Exit `5` also covers another `rhap` process holding the
+token-refresh lock past a 75-second wait, in which case nothing was sent.
 
 ## Safety & privacy
 

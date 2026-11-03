@@ -25,6 +25,11 @@ sandbox**. The things worth protecting:
   `token_endpoint_auth_methods_supported: ["none"]`). It lives in `config.json`
   by design.
 
+`~/.config/rhap/token-refresh.lock` is an empty file that holds no secret. `rhap`
+processes lock it while renewing the session, so two copies do not renew at the
+same time. That holds once every copy sharing the keychain item is 0.3.2 or later,
+including a process not yet restarted; docs/api.md §3 has what a 0.3.1 copy does.
+
 The account is identifying and is **never hardcoded**. It is also never ambient:
 any account-scoped command (`positions list`, `orders list`, `order place`,
 `order cancel`) takes a **required `--account <ID>`** per invocation — there is

@@ -2,17 +2,13 @@
 //!
 //! The paper tick and interactive sessions both run rhap, and each may find
 //! the stored access token expired at the same moment. [`current_tokens`]
-//! serialises refresh with an exclusive `flock` and re-reads the tokens under
-//! it, so only one process spends the refresh token.
+//! serialises refresh with `pk_cli_auth`'s [`RefreshLock`] and re-reads the
+//! tokens under it, so only one process spends the refresh token.
 
-use std::fs::{File, OpenOptions};
-use std::path::{Path, PathBuf};
-
-use pk_cli_config::ConfigStore;
+use pk_cli_auth::refresh_lock::RefreshLock;
 use pk_cli_core::CliError;
 use pk_cli_secrets::CredentialStore;
 
-use crate::config::BIN;
 use crate::credential::{self, TokenSet};
 
 /// Where the stored token set is read from and written to. The keychain in
@@ -33,46 +29,6 @@ impl TokenStore for KeychainTokens<'_> {
     }
 }
 
-/// The refresh lock: `token-refresh.lock` beside the default `config.json`
-/// (`${XDG_CONFIG_HOME:-~/.config}/rhap/`). Deliberately not the `--config`
-/// override's directory: the keychain entry is machine-wide, so every rhap
-/// process must contend on the same file whatever config it was given.
-pub(crate) fn refresh_lock_path() -> Result<PathBuf, CliError> {
-    let config = ConfigStore::new(BIN).path()?;
-    let dir = config
-        .parent()
-        .ok_or_else(|| CliError::Other(format!("{} has no parent", config.display())))?;
-    Ok(dir.join("token-refresh.lock"))
-}
-
-/// An exclusive `flock` on the lock file, released when dropped (and by the
-/// kernel if the process dies holding it).
-struct RefreshLock(File);
-
-impl RefreshLock {
-    fn acquire(path: &Path) -> Result<Self, CliError> {
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)
-                .map_err(|e| CliError::Other(format!("creating {}: {e}", dir.display())))?;
-        }
-        let file = OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .open(path)
-            .map_err(|e| CliError::Other(format!("opening {}: {e}", path.display())))?;
-        file.lock()
-            .map_err(|e| CliError::Other(format!("locking {}: {e}", path.display())))?;
-        Ok(Self(file))
-    }
-}
-
-impl Drop for RefreshLock {
-    fn drop(&mut self) {
-        let _ = self.0.unlock();
-    }
-}
-
 /// The stored tokens, refreshed first if the access token has expired.
 ///
 /// Refresh runs under an exclusive lock, and the tokens are re-read once the
@@ -82,9 +38,12 @@ impl Drop for RefreshLock {
 /// replaced, and the loser's write can leave a dead refresh token in the
 /// keychain (audit 2026-09-23, security #8). Under the lock the second process
 /// finds the first one's fresh token and does not refresh at all.
+///
+/// The wait is bounded. Past it the error is exit 5 and nothing has been sent,
+/// so the order or read that asked for these tokens never started.
 pub(crate) fn current_tokens<S, N, R>(
     store: &mut S,
-    lock_path: &Path,
+    lock: &RefreshLock,
     now: N,
     refresh: R,
 ) -> Result<TokenSet, CliError>
@@ -99,21 +58,24 @@ where
         return Ok(tokens);
     }
 
-    let _lock = RefreshLock::acquire(lock_path)?;
-    // Another process may have refreshed while this one waited for the lock.
-    let tokens = store.read()?.ok_or_else(not_logged_in)?;
-    if !tokens.access_expired(now()) {
-        return Ok(tokens);
-    }
-    let fresh = refresh(&tokens)?;
-    store.write(&fresh)?;
-    Ok(fresh)
+    lock.hold(|| {
+        // Another process may have refreshed while this one waited for the lock.
+        let tokens = store.read()?.ok_or_else(not_logged_in)?;
+        if !tokens.access_expired(now()) {
+            return Ok(tokens);
+        }
+        let fresh = refresh(&tokens)?;
+        store.write(&fresh)?;
+        Ok(fresh)
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
     use std::sync::{Arc, Barrier, Mutex};
+    use std::time::Duration;
 
     fn tokens(access: &str, expires_at: u64) -> TokenSet {
         TokenSet {
@@ -125,10 +87,11 @@ mod tests {
         }
     }
 
-    fn scratch_lock(tag: &str) -> PathBuf {
-        std::env::temp_dir()
+    fn scratch_lock(tag: &str) -> RefreshLock {
+        let path: PathBuf = std::env::temp_dir()
             .join(format!("rhap-lock-test-{}-{tag}", std::process::id()))
-            .join("token-refresh.lock")
+            .join("token-refresh.lock");
+        RefreshLock::at(path)
     }
 
     /// Returns each queued read in turn (the last one repeats), and records
@@ -164,7 +127,10 @@ mod tests {
         let t = current_tokens(&mut s, &lock, || NOW, |_| panic!("no refresh")).unwrap();
         assert_eq!(t.access_token, "live");
         assert_eq!(s.served, 1);
-        assert!(!lock.exists(), "a valid token never touches the lock");
+        assert!(
+            !lock.path().exists(),
+            "a valid token never touches the lock"
+        );
     }
 
     /// The seam for the cross-process case: expired on the first read, fresh
@@ -245,14 +211,14 @@ mod tests {
         }
     }
 
-    /// Two contenders see the same expired token; the flock serialises them
+    /// Two contenders see the same expired token; the lock serialises them
     /// (separate open file descriptions contend even within one process), so
     /// exactly one refreshes and the other uses its result.
     #[test]
     fn concurrent_refreshes_are_serialised_by_the_lock() {
         let keychain = Arc::new(Mutex::new(tokens("stale", NOW - 1)));
         let refreshes = Arc::new(Mutex::new(0u32));
-        let lock = scratch_lock("race");
+        let lock = scratch_lock("race").path().to_path_buf();
         let start = Arc::new(Barrier::new(2));
         let handles: Vec<_> = (0..2)
             .map(|_| {
@@ -267,7 +233,7 @@ mod tests {
                     start.wait();
                     current_tokens(
                         &mut store,
-                        &lock,
+                        &RefreshLock::at(lock),
                         || NOW,
                         |_| {
                             *refreshes.lock().unwrap() += 1;
@@ -284,5 +250,32 @@ mod tests {
             assert_eq!(h.join().unwrap(), "new");
         }
         assert_eq!(*refreshes.lock().unwrap(), 1, "exactly one refresh");
+    }
+
+    /// A holder that never lets go used to hang this process, and the order or
+    /// read behind it, for as long as the holder lived.
+    #[test]
+    fn a_stuck_holder_is_exit_5_with_no_read_and_no_refresh() {
+        let lock = scratch_lock("stuck");
+        let mut s = Scripted {
+            reads: vec![Some(tokens("stale", NOW - 1))],
+            served: 0,
+            written: vec![],
+        };
+        lock.hold(|| {
+            let err = current_tokens(
+                &mut s,
+                &lock.clone().wait_at_most(Duration::from_millis(100)),
+                || NOW,
+                |_| panic!("no refresh without the lock"),
+            )
+            .unwrap_err();
+            assert_eq!(err.exit_code(), 5);
+            assert!(err.to_string().contains("nothing was sent"), "{err}");
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(s.served, 1, "only the read before the lock");
+        assert!(s.written.is_empty());
     }
 }
