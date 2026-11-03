@@ -17,7 +17,7 @@ identity the keychain trusts (audit 2026-09-23, security #5), so rhap removed
 it; a new binary comes from `make install` with the owner present. rhap is not
 listed in cli-common's `conformance.md`; this paragraph is the record of the
 deviation. Shared behavior comes from the `pk-cli-*` crates pinned to tag
-**v0.7.0** — reuse before writing (output, dates, `RangeArgs`, keychain,
+**v0.15.1** — reuse before writing (output, dates, `RangeArgs`, keychain,
 config, the JWT `token` helpers).
 
 ## Write-capable — the single most important fact

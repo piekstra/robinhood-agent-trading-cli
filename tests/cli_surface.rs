@@ -1071,6 +1071,19 @@ fn completions_generate_for_each_shell() {
     }
 }
 
+/// Any non-empty `NO_COLOR` disables color (no-color.org); none of the
+/// conventional values may turn into a usage error.
+#[test]
+fn no_color_in_the_environment_never_fails_a_command() {
+    for v in ["1", "true", "0", ""] {
+        rhap()
+            .env("NO_COLOR", v)
+            .args(["completions", "bash"])
+            .assert()
+            .success();
+    }
+}
+
 /// With no session stored, a read must fail as auth (3) pointing at login — not
 /// panic, not report empty data. Opt-in because it reads the keychain.
 #[test]
