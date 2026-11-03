@@ -5,12 +5,13 @@
 //! owner's to run; the rest work offline. `status` never spends a request unless
 //! `--verify` is passed.
 
+use pk_cli_auth::refresh_lock::RefreshLock;
 use pk_cli_auth::{token, AuthMethod, AuthStatus, SetCredentialArgs};
 use pk_cli_config::ConfigStore;
 use pk_cli_core::{dates, CliError, CommonArgs};
 use pk_cli_secrets::CredentialStore;
 
-use crate::config::{Config, MCP_ENDPOINT, SCOPE};
+use crate::config::{Config, BIN, MCP_ENDPOINT, SCOPE};
 use crate::credential::{self, now_unix, TokenSet};
 use crate::mcp::McpClient;
 use crate::{discovery, oauth};
@@ -45,6 +46,10 @@ pub fn login(
             "a session is already stored; pass --overwrite to replace it".into(),
         ));
     }
+
+    // Before the browser: a stuck or unusable lock must not cost a sign-in.
+    let lock = RefreshLock::for_binary(BIN)?;
+    lock.before_signin()?;
 
     let http = pk_cli_http::client("rhap", env!("CARGO_PKG_VERSION"))?;
     let endpoints = discovery::discover(&http)?;
@@ -101,7 +106,8 @@ pub fn login(
         discovery::resource_indicator(),
         now_unix(),
     )?;
-    credential::write_tokens(creds, &tokens)?;
+    // Under the lock, so a refresh in flight cannot overwrite this session.
+    lock.store_signin(|| credential::write_tokens(creds, &tokens))?;
 
     if !input.no_verify {
         // The one cheap read that proves the whole chain works.
@@ -183,7 +189,9 @@ pub fn logout(
     creds: &CredentialStore,
     forget: bool,
 ) -> Result<(), CliError> {
-    creds.delete(crate::config::KEYCHAIN_TOKENS)?;
+    // The delete runs with or without the lock; a refresh in flight must not
+    // store the session again behind it.
+    RefreshLock::forget_for_binary(BIN, || creds.delete(crate::config::KEYCHAIN_TOKENS))?;
     if forget {
         store.clear()?;
         if !common.quiet {
@@ -207,11 +215,15 @@ pub fn set_credential(
             "a session is already stored; pass --overwrite to replace it".into(),
         ));
     }
+    // Fails on an unusable lock before the secret is read, without waiting on a
+    // busy one: bad input should still fail at once.
+    let lock = RefreshLock::for_binary(BIN)?;
+    lock.try_hold(|| Ok(()))?;
     let secret = args.source.read(None)?;
     // Parse before storing so a malformed bundle fails at write time, not on
     // first use.
     let tokens = TokenSet::parse(secret.expose())?;
-    credential::write_tokens(creds, &tokens)?;
+    lock.store_signin(|| credential::write_tokens(creds, &tokens))?;
     if !common.quiet {
         eprintln!("token bundle stored in the OS keychain (piekstra.rhap)");
     }

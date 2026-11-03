@@ -101,11 +101,20 @@ refresh-token lifetime is **undocumented and not carried in the response**, so â
 unlike the Schwab CLI â€” rhap fabricates no local refresh deadline; a rejected
 refresh surfaces as an auth error pointing back at `auth login`.
 
-Refresh is serialised across processes: an exclusive `flock` on
-`~/.config/rhap/token-refresh.lock` (under `$XDG_CONFIG_HOME` when set), then
-the tokens are re-read, and the refresh runs only if they are still expired. A
-process that waited on the lock uses the token the holder just stored instead
-of spending a rotated refresh token.
+Refresh is serialised across processes: an exclusive lock on
+`~/.config/rhap/token-refresh.lock` (`pk_cli_auth::refresh_lock`, an empty file,
+whatever `--config` or `XDG_CONFIG_HOME` say), then the tokens are re-read, and
+the refresh runs only if they are still expired. A process that waited on the
+lock uses the token the holder just stored instead of spending the refresh
+token again. A wait is bounded at 75 s, then exit 5 naming the lock with nothing
+sent, so no order or read has started. A lock file that cannot be created or
+locked is exit 1. `auth login`, `auth set-credential` and `auth logout` hold the
+lock around their keychain write only, never across the browser.
+
+Whether Robinhood retires a spent refresh token or revokes a session when one is
+reused is not established. What the lock protects for certain is two running
+copies both renewing. It only excludes copies that take it: 0.3.1 locks the same
+file unless `XDG_CONFIG_HOME` is set, and waits on it without a bound.
 
 ## 4. Tool surface and the CLI mapping
 

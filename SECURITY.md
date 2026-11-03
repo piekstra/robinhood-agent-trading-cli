@@ -25,6 +25,10 @@ sandbox**. The things worth protecting:
   `token_endpoint_auth_methods_supported: ["none"]`). It lives in `config.json`
   by design.
 
+`~/.config/rhap/token-refresh.lock` is an empty file that holds no secret.
+`rhap` processes lock it while renewing the session, so two never present one
+refresh token (docs/api.md §3).
+
 The account is identifying and is **never hardcoded**. It is also never ambient:
 any account-scoped command (`positions list`, `orders list`, `order place`,
 `order cancel`) takes a **required `--account <ID>`** per invocation — there is

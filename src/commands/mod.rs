@@ -17,13 +17,14 @@ pub mod score;
 pub mod tools;
 pub mod watchlists;
 
+use pk_cli_auth::refresh_lock::RefreshLock;
 use pk_cli_core::{CliError, CommonArgs};
 use pk_cli_secrets::CredentialStore;
 
-use crate::config::{Config, MCP_ENDPOINT};
+use crate::config::{Config, BIN, MCP_ENDPOINT};
 use crate::credential::now_unix;
 use crate::mcp::McpClient;
-use crate::token_refresh::{current_tokens, refresh_lock_path, KeychainTokens};
+use crate::token_refresh::{current_tokens, KeychainTokens};
 use crate::{discovery, oauth};
 
 /// Everything a networked command needs: the global flags, the loaded config,
@@ -47,8 +48,8 @@ impl<'a> Ctx<'a> {
     /// error points at `rhap auth login`.
     pub fn client(&self) -> Result<McpClient, CliError> {
         let mut store = KeychainTokens(self.creds);
-        let lock_path = refresh_lock_path()?;
-        let tokens = current_tokens(&mut store, &lock_path, now_unix, |stale| {
+        let lock = RefreshLock::for_binary(BIN)?;
+        let tokens = current_tokens(&mut store, &lock, now_unix, |stale| {
             let client_id = self.cfg.client_id.as_deref().ok_or_else(|| {
                 CliError::Auth(
                     "the access token is expired and no OAuth client id is stored to refresh it — \

@@ -17,8 +17,8 @@ identity the keychain trusts (audit 2026-09-23, security #5), so rhap removed
 it; a new binary comes from `make install` with the owner present. rhap is not
 listed in cli-common's `conformance.md`; this paragraph is the record of the
 deviation. Shared behavior comes from the `pk-cli-*` crates pinned to tag
-**v0.15.1** — reuse before writing (output, dates, `RangeArgs`, keychain,
-config, the JWT `token` helpers).
+**v0.20.0** — reuse before writing (output, dates, `RangeArgs`, keychain,
+config, the JWT `token` helpers, `RefreshLock`).
 
 ## Write-capable — the single most important fact
 
@@ -60,7 +60,7 @@ JSON-RPC/SSE handling, order-argument building, token parsing) are unit-tested;
 | `src/main.rs` | clap tree, dispatch, early argument validation, exit codes |
 | `src/config.rs` | constants + non-secret settings (public client id; the no-ambient-account rule) |
 | `src/credential.rs` | the `TokenSet` and its keychain storage |
-| `src/token_refresh.rs` | cross-process refresh: `flock` on `token-refresh.lock`, re-read, refresh only if still expired |
+| `src/token_refresh.rs` | cross-process refresh: `pk_cli_auth`'s `RefreshLock` on `token-refresh.lock`, re-read, refresh only if still expired |
 | `src/catalog.rs` | the embedded tool catalog and the read / review / write classification (`readOnlyHint`) |
 | `src/discovery.rs` | OAuth metadata discovery (RFC 9728 + 8414) |
 | `src/oauth.rs` | PKCE, authorization URL, registration, token exchange/refresh, loopback |
