@@ -215,15 +215,13 @@ pub fn set_credential(
             "a session is already stored; pass --overwrite to replace it".into(),
         ));
     }
-    // Fails on an unusable lock before the secret is read, without waiting on a
-    // busy one: bad input should still fail at once.
-    let lock = RefreshLock::for_binary(BIN)?;
-    lock.try_hold(|| Ok(()))?;
     let secret = args.source.read(None)?;
     // Parse before storing so a malformed bundle fails at write time, not on
     // first use.
     let tokens = TokenSet::parse(secret.expose())?;
-    lock.store_signin(|| credential::write_tokens(creds, &tokens))?;
+    // A plain `hold`, not `store_signin`: nobody signed in, and the bundle is still
+    // wherever it was piped from, so a busy lock costs a retry and nothing more.
+    RefreshLock::for_binary(BIN)?.hold(|| credential::write_tokens(creds, &tokens))?;
     if !common.quiet {
         eprintln!("token bundle stored in the OS keychain (piekstra.rhap)");
     }

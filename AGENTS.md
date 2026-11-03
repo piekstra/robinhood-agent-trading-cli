@@ -73,7 +73,8 @@ JSON-RPC/SSE handling, order-argument building, token parsing) are unit-tested;
 - **Never send a live order.** Build and test writes via `--dry-run` only.
 - **`--json` on every command**, exactly one DTO per invocation, `schema`
   tagged. Human output to stdout, diagnostics to stderr.
-- **Exit codes**: 0 ok · 2 usage · 3 auth · 4 not found · 5 upstream ·
+- **Exit codes**: 0 ok · 2 usage · 3 auth · 4 not found · 5 upstream, or the
+  token-refresh lock busy past its wait (nothing sent, safe to retry) ·
   6 confirmation required.
 - **Validate args before touching keychain or network**, so `--help`, bad
   input, and a write-verb typo never prompt, hang, or hit the provider.

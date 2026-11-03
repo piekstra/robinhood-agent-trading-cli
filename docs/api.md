@@ -107,9 +107,13 @@ whatever `--config` or `XDG_CONFIG_HOME` say), then the tokens are re-read, and
 the refresh runs only if they are still expired. A process that waited on the
 lock uses the token the holder just stored instead of spending the refresh
 token again. A wait is bounded at 75 s, then exit 5 naming the lock with nothing
-sent, so no order or read has started. A lock file that cannot be created or
-locked is exit 1. `auth login`, `auth set-credential` and `auth logout` hold the
-lock around their keychain write only, never across the browser.
+sent: no order or read has started, so it is safe to retry, and the error says so.
+A lock file that cannot be created or locked is exit 1.
+
+`auth login` checks the lock before the browser opens and holds it around its
+keychain write only. `auth set-credential` parses its input, then holds it around
+the write. `auth logout` deletes through `forget_for_binary`, so the delete runs
+even if the lock is unavailable.
 
 Whether Robinhood retires a spent refresh token or revokes a session when one is
 reused is not established. What the lock protects for certain is two running
