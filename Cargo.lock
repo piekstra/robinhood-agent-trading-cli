@@ -1299,8 +1299,8 @@ dependencies = [
 
 [[package]]
 name = "pk-cli-auth"
-version = "0.7.0"
-source = "git+https://github.com/piekstra/cli-common?tag=v0.7.0#64d70ed230e8a36070f5d1f84975213bb042940b"
+version = "0.15.1"
+source = "git+https://github.com/piekstra/cli-common?tag=v0.15.1#1873d2a744dd026599d89f0fa46820b2fa77510f"
 dependencies = [
  "clap",
  "pk-cli-core",
@@ -1311,8 +1311,8 @@ dependencies = [
 
 [[package]]
 name = "pk-cli-config"
-version = "0.7.0"
-source = "git+https://github.com/piekstra/cli-common?tag=v0.7.0#64d70ed230e8a36070f5d1f84975213bb042940b"
+version = "0.15.1"
+source = "git+https://github.com/piekstra/cli-common?tag=v0.15.1#1873d2a744dd026599d89f0fa46820b2fa77510f"
 dependencies = [
  "pk-cli-core",
  "serde",
@@ -1321,10 +1321,11 @@ dependencies = [
 
 [[package]]
 name = "pk-cli-core"
-version = "0.7.0"
-source = "git+https://github.com/piekstra/cli-common?tag=v0.7.0#64d70ed230e8a36070f5d1f84975213bb042940b"
+version = "0.15.1"
+source = "git+https://github.com/piekstra/cli-common?tag=v0.15.1#1873d2a744dd026599d89f0fa46820b2fa77510f"
 dependencies = [
  "clap",
+ "libc",
  "reqwest",
  "serde",
  "serde_json",
@@ -1332,8 +1333,8 @@ dependencies = [
 
 [[package]]
 name = "pk-cli-http"
-version = "0.7.0"
-source = "git+https://github.com/piekstra/cli-common?tag=v0.7.0#64d70ed230e8a36070f5d1f84975213bb042940b"
+version = "0.15.1"
+source = "git+https://github.com/piekstra/cli-common?tag=v0.15.1#1873d2a744dd026599d89f0fa46820b2fa77510f"
 dependencies = [
  "clap",
  "pk-cli-core",
@@ -1343,13 +1344,15 @@ dependencies = [
 
 [[package]]
 name = "pk-cli-secrets"
-version = "0.7.0"
-source = "git+https://github.com/piekstra/cli-common?tag=v0.7.0#64d70ed230e8a36070f5d1f84975213bb042940b"
+version = "0.15.1"
+source = "git+https://github.com/piekstra/cli-common?tag=v0.15.1#1873d2a744dd026599d89f0fa46820b2fa77510f"
 dependencies = [
  "clap",
  "keyring",
  "pk-cli-core",
  "rpassword",
+ "serde",
+ "serde_json",
  "zeroize",
 ]
 
@@ -1675,7 +1678,7 @@ dependencies = [
 
 [[package]]
 name = "robinhood-agent-trading-cli"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "assert_cmd",
  "base64",
