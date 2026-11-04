@@ -766,6 +766,19 @@ impl<S: Source> RhapTools<S> {
         let payload = reader
             .read(Upstream::EquityQuotes, json!({ "symbols": symbols }))
             .map_err(tool_err)?;
+        // A list that is there and empty: no such quote, and not a changed answer.
+        let data = payload.get("data");
+        let no_match = LIST_KEYS
+            .iter()
+            .filter_map(|key| data?.get(key)?.as_array())
+            .any(Vec::is_empty);
+        if no_match {
+            return Err(ToolError::not_found(format!(
+                "Robinhood has no quote for {}",
+                symbols.join(", ")
+            ))
+            .with_fix("Check the symbols with the user"));
+        }
         ToolOutput::new(&QuotesOut {
             quotes: single(
                 payload,

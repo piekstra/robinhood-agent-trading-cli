@@ -843,6 +843,27 @@ fn an_answer_holding_nothing_is_upstream_for_the_tools_that_are_not_lists() {
     }
 }
 
+/// The empty form of a quotes answer means no such symbol. That shape is an assumption until a
+/// capture exists, and what it must not do is send the user off to update a healthy tool.
+#[test]
+fn a_quote_for_nothing_is_not_found_and_not_a_changed_answer() {
+    let t = RhapTools::new(Canned::with_pages(vec![json!({
+        "data": {"results": [], "closes": []},
+        "guide": "advice",
+    })]));
+    let text = error_text(&call(
+        &t,
+        QUOTES_TOOL,
+        json!({"symbols": ["SAMPL", "TESTF"]}),
+    ));
+    assert!(
+        text.starts_with("not found:") || text.starts_with("not_found:"),
+        "{text}"
+    );
+    assert!(text.contains("SAMPL, TESTF"), "{text}");
+    assert!(!text.contains("updating"), "{text}");
+}
+
 #[test]
 fn every_tool_can_return_the_answer_whole() {
     let t = tools();
