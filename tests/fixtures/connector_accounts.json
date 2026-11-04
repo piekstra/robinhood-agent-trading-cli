@@ -3,14 +3,14 @@
     "accounts": [
       {
         "account_number": "SAMPLE01",
-        "rhs_account_number": "SAMPLE-RHS-01",
+        "rhs_account_number": "00000001",
         "type": "individual",
         "agentic_allowed": true,
         "nickname": null
       },
       {
         "account_number": "SAMPLE02",
-        "rhs_account_number": "SAMPLE-RHS-02",
+        "rhs_account_number": "00000002",
         "type": "individual",
         "agentic_allowed": false,
         "nickname": null

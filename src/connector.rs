@@ -21,7 +21,8 @@ use pk_cli_config::ConfigStore;
 use pk_cli_core::dates::parse_iso;
 use pk_cli_core::CliError;
 use pk_cli_mcp::{
-    parse_args, ListArgs, Page, ResumeRequest, Server, ToolDef, ToolError, ToolOutput, Toolset,
+    parse_args, ListArgs, Page, ResponseFormat, ResumeRequest, Server, ToolDef, ToolError,
+    ToolOutput, Toolset,
 };
 use pk_cli_secrets::CredentialStore;
 use schemars::JsonSchema;
@@ -184,45 +185,64 @@ fn data_of(mut payload: Value) -> Value {
     }
 }
 
-/// One page of Robinhood's list: its rows, and the cursor of the page after it.
+fn changed(tool: Upstream) -> ToolError {
+    ToolError::upstream(format!(
+        "Robinhood's {} answered in a shape this tool does not recognize",
+        tool.name()
+    ))
+    .with_fix("Tell the user rhap may need updating; `rhap call` shows the raw answer")
+}
+
+/// One page of Robinhood's list: its rows, and the cursor of the page after it. A shape this
+/// cannot place fails, since a false empty list would read as an empty account.
 fn list_of(payload: Value, tool: Upstream) -> Result<(Vec<Value>, Option<String>), ToolError> {
-    let changed = || {
-        ToolError::upstream(format!(
-            "Robinhood's {} answered in a shape this tool does not recognize",
-            tool.name()
-        ))
-        .with_fix("Tell the user rhap may need updating; `rhap call` shows the raw answer")
-    };
+    let has_data = payload.get("data").is_some();
     match data_of(payload) {
         Value::Array(rows) => Ok((rows, None)),
         Value::Object(mut map) => {
             let next = match map.get("next") {
                 None | Some(Value::Null) => None,
-                Some(Value::String(next)) => Some(cursor_from(next).ok_or_else(changed)?),
-                Some(_) => return Err(changed()),
+                Some(Value::String(next)) => Some(cursor_from(next).ok_or_else(|| changed(tool))?),
+                Some(_) => return Err(changed(tool)),
             };
-            // The list is the only array, or under a name Robinhood's tools use. A shape this
-            // cannot place fails rather than reading as an empty account.
-            let arrays: Vec<String> = map
+            let named = LIST_KEYS
                 .iter()
-                .filter(|(_, v)| v.is_array())
-                .map(|(k, _)| k.clone())
-                .collect();
-            let key = match arrays.as_slice() {
-                [only] => only.clone(),
-                many => LIST_KEYS
-                    .iter()
-                    .find(|k| many.iter().any(|m| m == *k))
-                    .map(|k| k.to_string())
-                    .ok_or_else(changed)?,
+                .find(|key| map.get(**key).is_some_and(Value::is_array))
+                .map(|key| key.to_string());
+            let lone = || {
+                let mut arrays = map.iter().filter(|(_, v)| v.is_array());
+                match (arrays.next(), arrays.next()) {
+                    // A list under another name: `data` vouches for it, and it holds rows.
+                    (Some((key, Value::Array(rows))), None)
+                        if has_data && !rows.is_empty() && rows.iter().all(Value::is_object) =>
+                    {
+                        Some(key.clone())
+                    }
+                    _ => None,
+                }
             };
+            let key = named.or_else(lone).ok_or_else(|| changed(tool))?;
             match map.remove(&key) {
                 Some(Value::Array(rows)) => Ok((rows, next)),
-                _ => Err(changed()),
+                _ => Err(changed(tool)),
             }
         }
-        _ => Err(changed()),
+        _ => Err(changed(tool)),
     }
+}
+
+/// One answer that is not a list. An answer holding nothing, or still in its MCP envelope with no
+/// text in it, is not a successful read of no figures.
+fn single(payload: Value, tool: Upstream, detailed: bool) -> Result<Value, ToolError> {
+    if payload.get("data").is_none() && payload.get("content").is_some() {
+        return Err(changed(tool));
+    }
+    let data = data_of(payload);
+    let brief = concise(data.clone());
+    if !(brief.is_object() || brief.is_array()) || is_noise(&brief) {
+        return Err(changed(tool));
+    }
+    Ok(if detailed { data } else { brief })
 }
 
 /// The `cursor` parameter of a page's `next` URL, if it is one a later call can send on.
@@ -376,6 +396,19 @@ fn checked_account(account: &str) -> Result<String, ToolError> {
     }
 }
 
+/// A crypto tool wants the numeric `rhs_account_number`, where every other wants `account_number`.
+fn checked_rhs_account(account: &str) -> Result<String, ToolError> {
+    let account = checked_account(account)?;
+    if account.chars().all(|c| c.is_ascii_digit()) {
+        Ok(account)
+    } else {
+        Err(ToolError::usage(
+            "kind crypto takes the account's numeric rhs_account_number from rhap_accounts, not \
+             its account_number",
+        ))
+    }
+}
+
 fn checked_symbol(symbol: &str) -> Result<String, ToolError> {
     let symbol = symbol.trim().to_uppercase();
     let ok = !symbol.is_empty()
@@ -438,11 +471,14 @@ pub struct PortfolioArgs {
     /// Add realized profit and loss over this span.
     #[serde(default)]
     pub realized: Option<Span>,
+    /// concise (default) or detailed, as on the list tools.
+    #[serde(default)]
+    pub response_format: ResponseFormat,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct PositionsArgs {
-    /// An account number from rhap_accounts. Crypto wants its rhs_account_number.
+    /// account_number from rhap_accounts. For kind crypto, its numeric rhs_account_number.
     pub account: String,
     /// equity (default), option or crypto.
     #[serde(default)]
@@ -453,7 +489,7 @@ pub struct PositionsArgs {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct OrdersArgs {
-    /// An account number from rhap_accounts. Crypto wants its rhs_account_number.
+    /// account_number from rhap_accounts. For kind crypto, its numeric rhs_account_number.
     pub account: String,
     /// equity (default), option, crypto or advanced.
     #[serde(default)]
@@ -475,6 +511,9 @@ pub struct OrdersArgs {
 pub struct QuotesArgs {
     /// Up to 20 stock symbols.
     pub symbols: Vec<String>,
+    /// concise (default) or detailed, as on the list tools.
+    #[serde(default)]
+    pub response_format: ResponseFormat,
 }
 
 #[derive(Serialize)]
@@ -588,6 +627,7 @@ impl<S: Source> RhapTools<S> {
         let portfolio = reader
             .read(Upstream::Portfolio, json!({ "account_number": account }))
             .map_err(tool_err)?;
+        let detailed = args.response_format.is_detailed();
         let realized = args
             .realized
             .map(|span| {
@@ -601,14 +641,19 @@ impl<S: Source> RhapTools<S> {
             .transpose()?;
         ToolOutput::new(&PortfolioOut {
             account,
-            portfolio: concise(data_of(portfolio)),
-            realized: realized.map(|r| concise(data_of(r))),
+            portfolio: single(portfolio, Upstream::Portfolio, detailed)?,
+            realized: realized
+                .map(|r| single(r, Upstream::RealizedPnl, detailed))
+                .transpose()?,
         })
     }
 
     fn positions(&self, args: Value) -> Result<ToolOutput, ToolError> {
         let args: PositionsArgs = parse_args(args)?;
-        let account = checked_account(&args.account)?;
+        let account = match args.kind {
+            PositionKind::Crypto => checked_rhs_account(&args.account)?,
+            _ => checked_account(&args.account)?,
+        };
         let page = ResumeRequest::new(
             &args.list,
             &PositionsFilter {
@@ -643,7 +688,10 @@ impl<S: Source> RhapTools<S> {
 
     fn orders(&self, args: Value) -> Result<ToolOutput, ToolError> {
         let args: OrdersArgs = parse_args(args)?;
-        let account = checked_account(&args.account)?;
+        let account = match args.kind {
+            OrderKind::Crypto => checked_rhs_account(&args.account)?,
+            _ => checked_account(&args.account)?,
+        };
         let state = optional(&args.state);
         if let Some(state) = state {
             if !state.chars().all(|c| c.is_ascii_lowercase() || c == '_') {
@@ -719,7 +767,11 @@ impl<S: Source> RhapTools<S> {
             .read(Upstream::EquityQuotes, json!({ "symbols": symbols }))
             .map_err(tool_err)?;
         ToolOutput::new(&QuotesOut {
-            quotes: concise(data_of(payload)),
+            quotes: single(
+                payload,
+                Upstream::EquityQuotes,
+                args.response_format.is_detailed(),
+            )?,
         })
     }
 }
@@ -750,7 +802,8 @@ impl<S: Source + Send + Sync> Toolset for RhapTools<S> {
                 "Robinhood accounts",
                 "Lists the user's brokerage accounts. Use it first, for the account numbers the \
                  other tools need. Returns items as Robinhood sends them, including \
-                 account_number and rhs_account_number.",
+                 account_number and rhs_account_number. Concise drops nulls, empty values and \
+                 links; response_format detailed keeps them.",
             )
             .input::<AccountsArgs>()
             .output::<Page<Value>>(),
@@ -760,6 +813,7 @@ impl<S: Source + Send + Sync> Toolset for RhapTools<S> {
                 "Reads one account's market value by asset type and its buying power. Use it for \
                  what an account is worth or can spend; pass realized for its realized profit and \
                  loss over a span. Returns account, portfolio and realized as Robinhood sends \
+                 them. Concise drops nulls, empty values and links; response_format detailed keeps \
                  them.",
             )
             .input::<PortfolioArgs>()
@@ -768,8 +822,9 @@ impl<S: Source + Send + Sync> Toolset for RhapTools<S> {
                 POSITIONS_TOOL,
                 "A Robinhood account's positions",
                 "Lists one account's open positions of one kind. Use it for what the user holds, \
-                 once per kind for all of it. Returns account, kind and items as Robinhood sends \
-                 them.",
+                 once per kind for all of it; kind crypto takes the numeric rhs_account_number. \
+                 Returns account, kind and items as Robinhood sends them. Concise drops nulls, \
+                 empty values and links; response_format detailed keeps them.",
             )
             .input::<PositionsArgs>()
             .output::<AccountListOut>(),
@@ -777,9 +832,10 @@ impl<S: Source + Send + Sync> Toolset for RhapTools<S> {
                 ORDERS_TOOL,
                 "A Robinhood account's orders",
                 "Lists one account's orders of one kind, newest first, open and closed. Use it \
-                 for what was bought or sold and whether it filled, once per kind for all of them. \
-                 Returns account, kind and items as Robinhood sends them. Narrow with state, \
-                 symbol or since.",
+                 for what was bought or sold and whether it filled, once per kind for all of them; \
+                 kind crypto takes the numeric rhs_account_number. Returns account, kind and items \
+                 as Robinhood sends them. Concise drops nulls, empty values and links; \
+                 response_format detailed keeps them. Narrow with state, symbol or since.",
             )
             .input::<OrdersArgs>()
             .output::<AccountListOut>(),
@@ -788,7 +844,8 @@ impl<S: Source + Send + Sync> Toolset for RhapTools<S> {
                 "Robinhood stock quotes",
                 "Reads current quotes and the last session's close for stock symbols. Use it to \
                  value a position, since positions carry no price. Returns quotes as Robinhood \
-                 sends them.",
+                 sends them. Concise drops nulls, empty values and links; response_format detailed \
+                 keeps them.",
             )
             .input::<QuotesArgs>()
             .output::<QuotesOut>(),

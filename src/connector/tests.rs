@@ -13,6 +13,8 @@ use serde_json::{json, Value};
 use super::*;
 
 const ACCOUNT: &str = "SAMPLE01";
+/// Crypto's numeric account number.
+const RHS: &str = "00000001";
 
 fn fixture(name: &str) -> Value {
     let path = format!(
@@ -350,7 +352,7 @@ fn accounts_list_and_keep_the_number_a_later_call_needs() {
     let out = fits(&tools(), ACCOUNTS_TOOL, json!({}));
     assert_eq!(out["returned"], 2);
     assert_eq!(out["items"][0]["account_number"], ACCOUNT);
-    assert_eq!(out["items"][0]["rhs_account_number"], "SAMPLE-RHS-01");
+    assert_eq!(out["items"][0]["rhs_account_number"], RHS);
 }
 
 #[test]
@@ -394,16 +396,17 @@ fn each_kind_reads_its_own_tool_with_the_argument_that_tool_wants() {
         (
             "crypto",
             "get_crypto_positions",
-            json!({"rhs_account_number": ACCOUNT}),
+            json!({"rhs_account_number": RHS}),
         ),
     ] {
+        let account = if kind == "crypto" { RHS } else { ACCOUNT };
         let out = fits(
             &t,
             POSITIONS_TOOL,
-            json!({"account": ACCOUNT, "kind": kind}),
+            json!({"account": account, "kind": kind}),
         );
         assert_eq!(out["kind"], kind);
-        assert_eq!(out["account"], ACCOUNT);
+        assert_eq!(out["account"], account);
         assert_eq!(
             t.source.asked.lock().unwrap().last().unwrap(),
             &(tool, args)
@@ -423,7 +426,7 @@ fn each_kind_reads_its_own_tool_with_the_argument_that_tool_wants() {
         (
             "crypto",
             "get_crypto_orders",
-            json!({"rhs_account_number": ACCOUNT}),
+            json!({"rhs_account_number": RHS}),
         ),
         (
             "advanced",
@@ -431,7 +434,8 @@ fn each_kind_reads_its_own_tool_with_the_argument_that_tool_wants() {
             json!({"account_number": ACCOUNT}),
         ),
     ] {
-        fits(&t, ORDERS_TOOL, json!({"account": ACCOUNT, "kind": kind}));
+        let account = if kind == "crypto" { RHS } else { ACCOUNT };
+        fits(&t, ORDERS_TOOL, json!({"account": account, "kind": kind}));
         assert_eq!(
             t.source.asked.lock().unwrap().last().unwrap(),
             &(tool, args)
@@ -465,14 +469,14 @@ fn every_argument_sent_is_one_the_catalog_lists_and_every_required_one_is_sent()
     for args in [
         json!({"account": ACCOUNT, "kind": "equity"}),
         json!({"account": ACCOUNT, "kind": "option"}),
-        json!({"account": ACCOUNT, "kind": "crypto"}),
+        json!({"account": RHS, "kind": "crypto"}),
     ] {
         fits(&t, POSITIONS_TOOL, args);
     }
     for args in [
         json!({"account": ACCOUNT, "kind": "equity", "state": "filled", "symbol": "SAMPL", "since": "2000-01-01"}),
         json!({"account": ACCOUNT, "kind": "option", "state": "filled", "since": "2000-01-01"}),
-        json!({"account": ACCOUNT, "kind": "crypto", "state": "filled", "symbol": "SAMPL", "since": "2000-01-01"}),
+        json!({"account": RHS, "kind": "crypto", "state": "filled", "symbol": "SAMPL", "since": "2000-01-01"}),
         json!({"account": ACCOUNT, "kind": "advanced", "since": "2000-01-01"}),
     ] {
         fits(&t, ORDERS_TOOL, args);
@@ -783,6 +787,11 @@ fn an_answer_with_no_list_is_upstream_and_an_empty_list_is_data() {
         json!({"data": {"lots": [], "more": []}}),
         json!({"data": {"positions": [], "next": 7}}),
         json!({"data": {"positions": [], "next": "https://api.example.invalid/no-cursor-here"}}),
+        json!({"content": []}),
+        json!({"content": [{"type": "image"}]}),
+        json!({"data": {"warnings": []}}),
+        json!({"data": {"warnings": ["an example"]}}),
+        json!({"warnings": [{"text": "no data key vouches for this"}]}),
     ] {
         let t = RhapTools::new(Canned::with_pages(vec![changed.clone()]));
         let text = error_text(&call(&t, POSITIONS_TOOL, json!({"account": ACCOUNT})));
@@ -812,6 +821,72 @@ fn a_page_naming_itself_as_the_next_is_upstream_and_not_a_loop() {
     assert!(text.starts_with("upstream:"), "{text}");
     assert!(text.contains("its own page"), "{text}");
     assert_eq!(t.source.asked.lock().unwrap().len(), 2);
+}
+
+/// A figure-less answer is not a read of no figures.
+#[test]
+fn an_answer_holding_nothing_is_upstream_for_the_tools_that_are_not_lists() {
+    for empty in [
+        json!({"content": []}),
+        json!({"content": [{"type": "image"}]}),
+        json!({"data": {}}),
+        json!({"data": {"total_value": null}}),
+        json!({"data": "not an object"}),
+        json!({"guide": "advice alone"}),
+    ] {
+        let t = RhapTools::new(Canned::with_pages(vec![empty.clone()]));
+        let text = error_text(&call(&t, PORTFOLIO_TOOL, json!({"account": ACCOUNT})));
+        assert!(text.starts_with("upstream:"), "{empty}: {text}");
+        let t = RhapTools::new(Canned::with_pages(vec![empty.clone()]));
+        let text = error_text(&call(&t, QUOTES_TOOL, json!({"symbols": ["SAMPL"]})));
+        assert!(text.starts_with("upstream:"), "{empty}: {text}");
+    }
+}
+
+#[test]
+fn every_tool_can_return_the_answer_whole() {
+    let t = tools();
+    let args = json!({"account": ACCOUNT, "response_format": "detailed"});
+    let out = fits(&t, PORTFOLIO_TOOL, args);
+    assert!(
+        out["portfolio"]
+            .get("updated_at")
+            .is_some_and(Value::is_null),
+        "{out}"
+    );
+    let out = fits(
+        &t,
+        QUOTES_TOOL,
+        json!({"symbols": ["SAMPL"], "response_format": "detailed"}),
+    );
+    assert!(
+        out["quotes"]["results"][0]["quote"]
+            .get("previous_close")
+            .is_some(),
+        "{out}"
+    );
+    let out = fits(&t, QUOTES_TOOL, json!({"symbols": ["SAMPL"]}));
+    assert!(
+        out["quotes"]["results"][0]["quote"]
+            .get("previous_close")
+            .is_none(),
+        "{out}"
+    );
+}
+
+/// The two numbers look alike in `rhap_accounts`, so the mistake is stopped before a read.
+#[test]
+fn crypto_refuses_an_account_number_and_names_the_one_it_wants() {
+    let t = RhapTools::new(Untouchable);
+    for tool in [POSITIONS_TOOL, ORDERS_TOOL] {
+        let text = error_text(&call(
+            &t,
+            tool,
+            json!({"account": ACCOUNT, "kind": "crypto"}),
+        ));
+        assert!(text.starts_with("usage:"), "{tool}: {text}");
+        assert!(text.contains("rhs_account_number"), "{tool}: {text}");
+    }
 }
 
 #[test]
@@ -967,14 +1042,16 @@ fn every_request_any_tool_sends_is_a_read_the_catalog_allows() {
         json!({"account": ACCOUNT, "realized": "year"}),
     );
     for kind in ["equity", "option", "crypto"] {
+        let account = if kind == "crypto" { RHS } else { ACCOUNT };
         fits(
             &t,
             POSITIONS_TOOL,
-            json!({"account": ACCOUNT, "kind": kind}),
+            json!({"account": account, "kind": kind}),
         );
     }
     for kind in ["equity", "option", "crypto", "advanced"] {
-        fits(&t, ORDERS_TOOL, json!({"account": ACCOUNT, "kind": kind}));
+        let account = if kind == "crypto" { RHS } else { ACCOUNT };
+        fits(&t, ORDERS_TOOL, json!({"account": account, "kind": kind}));
     }
     fits(&t, QUOTES_TOOL, json!({"symbols": ["SAMPL"]}));
 
@@ -1025,7 +1102,7 @@ fn the_fixtures_hold_only_dummies() {
         assert!(account["rhs_account_number"]
             .as_str()
             .unwrap()
-            .starts_with("SAMPLE"));
+            .starts_with("0000000"));
     }
     let orders = fixture("orders");
     for order in orders["data"]["orders"].as_array().unwrap() {

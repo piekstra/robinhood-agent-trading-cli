@@ -159,7 +159,9 @@ behind their guards.
 | `rhap_orders` | One account's orders of one kind, newest first |
 | `rhap_quotes` | Current quotes for up to 20 stock symbols |
 
-The account is never ambient here either: each tool takes it on each call. What the tools return
+The account is never ambient here either: each tool takes it on each call, and `kind: crypto` takes
+the account's numeric `rhs_account_number`. Concise results drop nulls, empty values and links;
+`response_format: detailed` keeps them. What the tools return
 goes to Claude, including account numbers, balances, holdings and orders
 ([`SECURITY.md`](SECURITY.md)).
 
