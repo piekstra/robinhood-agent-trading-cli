@@ -1,0 +1,80 @@
+{
+  "manifest_version": "0.3",
+  "name": "rhap",
+  "display_name": "Robinhood, read only (rhap)",
+  "version": "0.4.0",
+  "description": "Read your own Robinhood accounts, portfolio, positions, orders and quotes through the open-source rhap CLI. No tool can place, change or cancel an order.",
+  "long_description": "Ask Claude what your Robinhood accounts hold, what they are worth, what you bought or sold, and where a stock is trading. Five read-only tools: rhap_accounts, rhap_portfolio, rhap_positions, rhap_orders and rhap_quotes. No tool can place, change or cancel an order, exercise an option, move money or change a watchlist; those stay on the rhap command line. The extension asks for nothing: first install the rhap CLI and run `rhap auth login` in a terminal, which stores your session in the OS keychain, and the bundled rhap reads it from there and renews it. That session can also place orders, so treat the machine accordingly; no tool here uses it for that. On macOS the first call asks for keychain access; choose Always Allow. What the tools return (account numbers, balances, holdings and orders) goes to Claude as part of your conversation. Figures are Robinhood's, passed through unchanged, and are not advice. Unofficial; not affiliated with or endorsed by Robinhood.",
+  "author": {
+    "name": "piekstra",
+    "url": "https://github.com/piekstra"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/piekstra/robinhood-agent-trading-cli"
+  },
+  "homepage": "https://github.com/piekstra/robinhood-agent-trading-cli",
+  "documentation": "https://github.com/piekstra/robinhood-agent-trading-cli#use-with-claude",
+  "support": "https://github.com/piekstra/robinhood-agent-trading-cli/issues",
+  "license": "MIT OR Apache-2.0",
+  "keywords": [
+    "robinhood",
+    "brokerage",
+    "portfolio",
+    "read-only"
+  ],
+  "server": {
+    "type": "binary",
+    "entry_point": "server/rhap",
+    "mcp_config": {
+      "command": "${__dirname}/server/rhap",
+      "args": [
+        "mcp"
+      ],
+      "platform_overrides": {
+        "win32": {
+          "command": "${__dirname}/server/rhap.exe",
+          "args": [
+            "mcp"
+          ]
+        },
+        "linux": {
+          "command": "${__dirname}/server/linux/rhap",
+          "args": [
+            "mcp"
+          ]
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "rhap_accounts",
+      "description": "Your brokerage accounts and their numbers."
+    },
+    {
+      "name": "rhap_portfolio",
+      "description": "One account's value by asset type and buying power, and its realized profit and loss if you ask."
+    },
+    {
+      "name": "rhap_positions",
+      "description": "One account's open positions of one kind."
+    },
+    {
+      "name": "rhap_orders",
+      "description": "One account's orders of one kind, newest first."
+    },
+    {
+      "name": "rhap_quotes",
+      "description": "Current quotes for stock symbols."
+    }
+  ],
+  "tools_generated": false,
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ]
+  }
+}

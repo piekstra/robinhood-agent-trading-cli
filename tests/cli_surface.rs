@@ -42,6 +42,7 @@ fn isolated(tag: &str) -> Command {
 
 const GROUPS: &[&str] = &[
     "auth",
+    "mcp",
     "tools",
     "accounts",
     "positions",

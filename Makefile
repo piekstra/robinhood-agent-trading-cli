@@ -20,14 +20,14 @@ build:
 
 release: SIGN_TARGET = target/release/$(BIN)
 release:
-	$(CARGO) build --release
+	$(CARGO) build --release --locked
 	@$(SIGN)
 
 test:
-	$(CARGO) test --all
+	$(CARGO) test --all --locked
 
 lint:
-	$(CARGO) clippy --all-targets -- -D warnings
+	$(CARGO) clippy --all-targets --locked -- -D warnings
 
 fmt:
 	$(CARGO) fmt --all
@@ -78,6 +78,8 @@ smoke: release
 	./target/release/$(BIN) --version
 	./target/release/$(BIN) --help > /dev/null
 	./target/release/$(BIN) info > /dev/null
+	./target/release/$(BIN) mcp --help > /dev/null
+	./target/release/$(BIN) mcp --list-tools > /dev/null
 	./target/release/$(BIN) metrics list --json > /dev/null
 	! ./target/release/$(BIN) market regime --metric harvest/1 --json > /dev/null 2>&1
 	! ./target/release/$(BIN) ark score --metric harvest/1 --json > /dev/null 2>&1   # a score metric is refused (exit 2) before any network

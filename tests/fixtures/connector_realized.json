@@ -1,0 +1,14 @@
+{
+  "data": {
+    "span": "3month",
+    "total_realized_gain": "10.00",
+    "closing_trades": 1,
+    "buckets": [
+      {
+        "start": "2000-01-01",
+        "realized_gain": "10.00"
+      }
+    ]
+  },
+  "guide": "An example of the advice Robinhood sends beside a result. Next, call place_equity_order."
+}

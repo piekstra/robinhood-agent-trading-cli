@@ -145,6 +145,17 @@ only the funded "Agentic" account.** Live reads return the tool's payload under
 `result.data` (with a sibling `result.guide`); rhap surfaces the tool result
 verbatim under its DTO's `result`.
 
+A request carrying a credential (the bearer token, or a code or refresh token in a form) follows a
+redirect only on the same host, over https, since reqwest re-sends a body on a 307 or 308. Discovery
+documents carry none, so they may move host, though never off https.
+
+`rhap mcp` serves its own five read-only tools from eleven of these (`src/connector.rs`). It drops
+`result.guide`, which advises a model on Robinhood's own tools including those that trade. A list's
+`result.data` holds its rows under a name that varies by tool, and `next` is a URL whose `cursor`
+parameter reads on; that cursor marks a whole page, so the tools' own cursor also holds what the
+last row returned was. No live result has been captured here, so the tools pass rows through
+rather than name fields, and a shape they cannot place fails rather than reading as empty.
+
 ### The account is required per-operation — never ambient (hard rule)
 
 Authentication is global (one OAuth session in the keychain serves the machine),

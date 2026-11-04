@@ -71,3 +71,11 @@ applying the table above. A real `tools/call` result carries live account data,
 and a token response is a working credential — `raw-*.json`, `capture-*.json`,
 and `*.raw.json` are gitignored as a backstop, but the rule is simply: **never
 commit a capture.**
+
+## The connector's fixtures
+
+`connector_*.json` are the `result` a `tools/call` answers for `rhap mcp`'s tools to read. They
+are **not captures**: no live result has entered this repo. Their shape is modelled on the
+catalog's tool descriptions and on what `docs/api.md` records (`data`, with a sibling `guide`),
+and the row fields are invented to exercise what a tool does to a row. So the tools pass rows
+through and do not name their fields.

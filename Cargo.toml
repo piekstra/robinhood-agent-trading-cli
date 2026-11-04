@@ -1,9 +1,9 @@
 [package]
 name = "robinhood-agent-trading-cli"
 description = "Deterministic passthrough CLI for Robinhood's official Agentic Trading MCP server (piekstra-cli/1). Write-capable: dry-run + confirm."
-version = "0.3.2"
+version = "0.4.0"
 edition = "2021"
-# 1.89: pk-cli-auth (cli-common v0.20.0) needs it for the token-refresh lock.
+# 1.89: pk-cli-auth (cli-common) needs it for the token-refresh lock.
 rust-version = "1.89"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/piekstra/robinhood-agent-trading-cli"
@@ -16,11 +16,13 @@ name = "rhap"
 path = "src/main.rs"
 
 [dependencies]
-pk-cli-core = { git = "https://github.com/piekstra/cli-common", tag = "v0.20.0", features = ["reqwest"] }
-pk-cli-secrets = { git = "https://github.com/piekstra/cli-common", tag = "v0.20.0" }
-pk-cli-config = { git = "https://github.com/piekstra/cli-common", tag = "v0.20.0" }
-pk-cli-auth = { git = "https://github.com/piekstra/cli-common", tag = "v0.20.0" }
-pk-cli-http = { git = "https://github.com/piekstra/cli-common", tag = "v0.20.0" }
+pk-cli-core = { git = "https://github.com/piekstra/cli-common", tag = "v0.28.0", features = ["reqwest"] }
+pk-cli-secrets = { git = "https://github.com/piekstra/cli-common", tag = "v0.28.0" }
+pk-cli-config = { git = "https://github.com/piekstra/cli-common", tag = "v0.28.0" }
+pk-cli-auth = { git = "https://github.com/piekstra/cli-common", tag = "v0.28.0" }
+pk-cli-http = { git = "https://github.com/piekstra/cli-common", tag = "v0.28.0" }
+pk-cli-mcp = { git = "https://github.com/piekstra/cli-common", tag = "v0.28.0", features = ["stdio", "http"] }
+schemars = "1"
 
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "4"
@@ -37,7 +39,9 @@ base64 = "0.22"
 rand = "0.8"
 
 [dev-dependencies]
+pk-cli-mcp = { git = "https://github.com/piekstra/cli-common", tag = "v0.28.0", features = ["test-util"] }
 assert_cmd = "2"
+tempfile = "3"
 predicates = "3"
 
 [profile.release]

@@ -16,6 +16,7 @@
 mod catalog;
 mod commands;
 mod config;
+mod connector;
 mod credential;
 mod discovery;
 mod mcp;
@@ -151,6 +152,8 @@ enum Command {
     /// Non-secret settings.
     #[command(subcommand)]
     Config(ConfigCmd),
+    /// Serve read-only tools to Claude over MCP. No tool can place, change or cancel an order.
+    Mcp(pk_cli_mcp::McpArgs),
     /// Print a shell completion script.
     Completions { shell: Shell },
     /// Machine-readable capability discovery (cli-info/v1).
@@ -1339,6 +1342,14 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             return Ok(());
         }
         Command::Info => return commands::misc::info(cli.common.json),
+        // Before the config loads: listing the tools reads nothing, and a tool reads the config
+        // and the session on each call.
+        Command::Mcp(args) => {
+            let store = ConfigStore::new(BIN).with_override(cli.config.clone());
+            let creds = CredentialStore::for_binary(BIN);
+            let live = connector::Live::new(store, creds, cli.common.verbose);
+            return pk_cli_mcp::run(args, connector::RhapTools::new(live));
+        }
         Command::Metrics(MetricsCmd::List) => {
             return commands::score::metrics_list(cli.common.json)
         }
@@ -1474,6 +1485,7 @@ fn run(cli: &Cli) -> Result<(), CliError> {
                 | Command::Config(_)
                 | Command::Completions { .. }
                 | Command::Info
+                | Command::Mcp(_)
                 | Command::Metrics(_) => unreachable!("handled before session setup"),
             }
         }

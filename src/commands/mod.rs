@@ -47,32 +47,41 @@ impl<'a> Ctx<'a> {
     /// client id (config). If either the token or the client id is missing, the
     /// error points at `rhap auth login`.
     pub fn client(&self) -> Result<McpClient, CliError> {
-        let mut store = KeychainTokens(self.creds);
-        let lock = RefreshLock::for_binary(BIN)?;
-        let tokens = current_tokens(&mut store, &lock, now_unix, |stale| {
-            let client_id = self.cfg.client_id.as_deref().ok_or_else(|| {
-                CliError::Auth(
-                    "the access token is expired and no OAuth client id is stored to refresh it — \
-                     run `rhap auth login`"
-                        .into(),
-                )
-            })?;
-            let http = pk_cli_http::client("rhap", env!("CARGO_PKG_VERSION"))?;
-            let endpoints = discovery::discover(&http)?;
-            let fresh = oauth::refresh_tokens(
-                &http,
-                &endpoints.token_endpoint,
-                client_id,
-                &stale.refresh_token,
-                discovery::resource_indicator(),
-                now_unix(),
-            )?;
-            if self.common.verbose {
-                eprintln!("access token refreshed");
-            }
-            Ok(fresh)
-        })?;
-
-        McpClient::new(MCP_ENDPOINT, &tokens.access_token, self.common.verbose)
+        mint_client(self.cfg, self.creds, self.common.verbose)
     }
+}
+
+/// An authenticated MCP client, shared by the commands and `rhap mcp`'s tools.
+pub fn mint_client(
+    cfg: &Config,
+    creds: &CredentialStore,
+    verbose: bool,
+) -> Result<McpClient, CliError> {
+    let mut store = KeychainTokens(creds);
+    let lock = RefreshLock::for_binary(BIN)?;
+    let tokens = current_tokens(&mut store, &lock, now_unix, |stale| {
+        let client_id = cfg.client_id.as_deref().ok_or_else(|| {
+            CliError::Auth(
+                "the access token is expired and no OAuth client id is stored to refresh it — \
+                 run `rhap auth login`"
+                    .into(),
+            )
+        })?;
+        let endpoints = discovery::discover(&oauth::discovery_client()?)?;
+        let http = oauth::credential_client()?;
+        let fresh = oauth::refresh_tokens(
+            &http,
+            &endpoints.token_endpoint,
+            client_id,
+            &stale.refresh_token,
+            discovery::resource_indicator(),
+            now_unix(),
+        )?;
+        if verbose {
+            eprintln!("access token refreshed");
+        }
+        Ok(fresh)
+    })?;
+
+    McpClient::new(MCP_ENDPOINT, &tokens.access_token, verbose)
 }

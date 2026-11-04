@@ -185,6 +185,24 @@ pub fn exchange_code(
     TokenSet::from_response(&body, now, None)
 }
 
+/// A client for what carries a credential: the bearer token, or a code or refresh token in a body
+/// that reqwest re-sends on a 307 or 308. It follows a redirect only on the same host, over https.
+pub fn credential_client() -> Result<reqwest::blocking::Client, CliError> {
+    pk_cli_http::builder("rhap", env!("CARGO_PKG_VERSION"))
+        .redirect(pk_cli_core::transport::same_host_redirects())
+        .build()
+        .map_err(|e| CliError::Other(format!("failed to build HTTP client: {e}")))
+}
+
+/// A client for the discovery documents, which carry no credential and may move host, though never
+/// off https. `discovery::check_trusted_url` holds what they name to Robinhood's domain.
+pub fn discovery_client() -> Result<reqwest::blocking::Client, CliError> {
+    pk_cli_http::builder("rhap", env!("CARGO_PKG_VERSION"))
+        .redirect(pk_cli_core::transport::secure_redirects())
+        .build()
+        .map_err(|e| CliError::Other(format!("failed to build HTTP client: {e}")))
+}
+
 /// Trade a refresh token for a fresh access token (public client).
 pub fn refresh_tokens(
     http: &reqwest::blocking::Client,
@@ -422,6 +440,48 @@ pub fn decode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A server that answers every request with `status` and `location`, and counts them.
+    fn stub(status: u16, location: String) -> (String, std::sync::Arc<std::sync::Mutex<u32>>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/token", listener.local_addr().unwrap());
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(0));
+        let count = seen.clone();
+        std::thread::spawn(move || {
+            for conn in listener.incoming() {
+                let Ok(mut conn) = conn else { return };
+                let mut buf = [0u8; 4096];
+                let _ = conn.read(&mut buf);
+                *count.lock().unwrap() += 1;
+                let answer = format!(
+                    "HTTP/1.1 {status} Moved\r\nLocation: {location}\r\nContent-Length: 0\r\n\
+                     Connection: close\r\n\r\n"
+                );
+                let _ = conn.write_all(answer.as_bytes());
+            }
+        });
+        (url, seen)
+    }
+
+    /// reqwest re-sends a form on a 307, so a refresh token must not follow one to another host.
+    #[test]
+    fn a_refresh_token_does_not_follow_a_redirect_to_another_host() {
+        let (elsewhere, reached) = stub(500, String::new());
+        let (token_endpoint, asked) = stub(307, elsewhere);
+        let e = refresh_tokens(
+            &credential_client().unwrap(),
+            &token_endpoint,
+            "dummy-client",
+            "dummy-refresh-token",
+            "https://example.invalid/resource",
+            0,
+        )
+        .unwrap_err();
+        assert!(e.message().to_lowercase().contains("redirect"), "{e}");
+        assert_eq!(*asked.lock().unwrap(), 1);
+        assert_eq!(*reached.lock().unwrap(), 0);
+    }
 
     /// RFC 7636 Appendix B test vector: the canonical verifier→challenge pair.
     #[test]

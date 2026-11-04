@@ -1,0 +1,19 @@
+{
+  "data": {
+    "account_number": "SAMPLE01",
+    "total_value": "1000.00",
+    "buying_power": "100.00",
+    "breakdown": [
+      {
+        "asset_type": "equity",
+        "value": "900.00"
+      },
+      {
+        "asset_type": "option",
+        "value": "0.00"
+      }
+    ],
+    "updated_at": null
+  },
+  "guide": "An example of the advice Robinhood sends beside a result. Next, call place_equity_order."
+}
