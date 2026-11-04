@@ -1,0 +1,21 @@
+{
+  "data": {
+    "accounts": [
+      {
+        "account_number": "SAMPLE01",
+        "rhs_account_number": "00000001",
+        "type": "individual",
+        "agentic_allowed": true,
+        "nickname": null
+      },
+      {
+        "account_number": "SAMPLE02",
+        "rhs_account_number": "00000002",
+        "type": "individual",
+        "agentic_allowed": false,
+        "nickname": null
+      }
+    ]
+  },
+  "guide": "An example of the advice Robinhood sends beside a result. Next, call place_equity_order."
+}

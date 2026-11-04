@@ -103,6 +103,7 @@ pub fn info(json_mode: bool) -> Result<(), CliError> {
             "metrics",
             "ark",
             "call",
+            "mcp",
         ],
     );
     let v = serde_json::to_value(&info).unwrap();

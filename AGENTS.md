@@ -14,10 +14,10 @@ Conforms to `piekstra-cli/1` (see `~/Dev/cli-common/DESIGN.md` and
 `conformance.md`) **with one deliberate deviation: no `self-update`**. The
 shared `self-update` installed an unverified download and re-signed it with the
 identity the keychain trusts (audit 2026-09-23, security #5), so rhap removed
-it; a new binary comes from `make install` with the owner present. rhap is not
-listed in cli-common's `conformance.md`; this paragraph is the record of the
-deviation. Shared behavior comes from the `pk-cli-*` crates pinned to tag
-**v0.20.0** — reuse before writing (output, dates, `RangeArgs`, keychain,
+it; a new binary comes from `make install` with the owner present. rhap's family
+row is not in cli-common's `conformance.md`; this paragraph is the record of the
+deviation, and its MCP row points back here. Shared behavior comes from the `pk-cli-*` crates
+pinned to tag **v0.28.0** — reuse before writing (output, dates, `RangeArgs`, keychain,
 config, the JWT `token` helpers, `RefreshLock`).
 
 ## Write-capable — the single most important fact
@@ -39,6 +39,18 @@ there is no sandbox**. Three guards, all enforced in code:
 
 **Never send a live order** — not to test, not to verify a guessed schema. If a
 future change needs to, that is the owner's call, at the owner's hand.
+
+## `rhap mcp` serves reads only
+
+`src/connector.rs` serves five read-only tools to Claude. **Never add a tool, argument or code
+path that reaches an order, a cancel, an exercise, a transfer or a watchlist change, and never call
+`McpClient::write` from it.** A tool names a Robinhood tool only through the `Upstream` enum, and
+`src/connector/tests.rs` holds each variant to `ToolKind::Read`, every definition clear of the
+catalog's write tools, and every request the real client sends to that list. `ToolKind::Review` is not a read
+here, though `McpClient::read` allows it.
+
+`src/mcp.rs` is the other direction: rhap as a client of Robinhood's server. The rule below on the
+account applies to the tools too, so an account tool takes a required `account`.
 
 ## Build / test / lint
 
@@ -65,6 +77,7 @@ JSON-RPC/SSE handling, order-argument building, token parsing) are unit-tested;
 | `src/discovery.rs` | OAuth metadata discovery (RFC 9728 + 8414) |
 | `src/oauth.rs` | PKCE, authorization URL, registration, token exchange/refresh, loopback |
 | `src/mcp.rs` | JSON-RPC 2.0 Streamable-HTTP client + pure wire helpers |
+| `src/connector.rs` | `rhap mcp`: the server side, five read-only tools for Claude |
 | `src/commands/*.rs` | one module per command group |
 | `docs/api.md` | the endpoint, discovery chain, tool mapping, **and the traps** |
 

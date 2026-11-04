@@ -175,7 +175,7 @@ pub struct McpClient {
 impl McpClient {
     pub fn new(endpoint: &str, access_token: &str, verbose: bool) -> Result<Self, CliError> {
         Ok(McpClient {
-            http: pk_cli_http::client("rhap", env!("CARGO_PKG_VERSION"))?,
+            http: crate::oauth::credential_client()?,
             endpoint: endpoint.to_string(),
             token: access_token.to_string(),
             session_id: None,

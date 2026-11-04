@@ -1,0 +1,29 @@
+{
+  "data": {
+    "positions": [
+      {
+        "symbol": "SAMPL",
+        "quantity": "1.5000",
+        "average_cost": "10.0000",
+        "instrument": "https://api.example.invalid/instruments/00000000-0000-4000-8000-000000000001/",
+        "held_for_orders": null
+      },
+      {
+        "symbol": "TESTF",
+        "quantity": "2.0000",
+        "average_cost": "20.0000",
+        "instrument": "https://api.example.invalid/instruments/00000000-0000-4000-8000-000000000002/",
+        "held_for_orders": null
+      },
+      {
+        "symbol": "SAMPL",
+        "quantity": "3.0000",
+        "average_cost": "30.0000",
+        "instrument": "https://api.example.invalid/instruments/00000000-0000-4000-8000-000000000003/",
+        "held_for_orders": null
+      }
+    ],
+    "next": null
+  },
+  "guide": "An example of the advice Robinhood sends beside a result. Next, call place_equity_order."
+}

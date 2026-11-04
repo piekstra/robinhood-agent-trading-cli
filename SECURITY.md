@@ -20,6 +20,8 @@ sandbox**. The things worth protecting:
   worse, because it mints new access tokens without re-authenticating. Read at
   point of use, never logged, never placed on argv, never written to disk.
   `--verbose` prints JSON-RPC methods and ids, never the token.
+- **The connector token**, only after `rhap mcp --new-token`: the bearer token of `mcp --http`,
+  in the keychain as `mcp-http-token`. It reads through the tools and reaches nothing else.
 - **The OAuth `client_id`** from dynamic client registration is a **public**
   identifier of the app, not a secret (the server is a public OAuth client —
   `token_endpoint_auth_methods_supported: ["none"]`). It lives in `config.json`
@@ -55,8 +57,46 @@ a live order:
 
 It talks only to `agent.robinhood.com` (the MCP endpoint and OAuth discovery),
 `robinhood.com/oauth` (authorization), and `api.robinhood.com/oauth2/token/`
-(tokens). No telemetry, no third-party services. It hardcodes no secrets;
+(tokens), and a request carrying a credential follows a redirect only on the same host, over
+https. No telemetry. The only other path is the one you set up: `rhap mcp` results reach Claude,
+and `--http` results pass through your own Cloudflare account. It hardcodes no secrets;
 `gitleaks` runs in CI over the full history.
+
+## MCP tools
+
+`rhap mcp` serves five read-only tools to Claude: `rhap_accounts`, `rhap_portfolio`,
+`rhap_positions`, `rhap_orders` and `rhap_quotes`. **No tool can place, change or cancel an order,
+exercise an option, move money or change a watchlist, and no argument can name a tool that does.**
+A tool reaches Robinhood only through a closed list of eleven tools its catalog annotates
+read-only. Tests hold every definition and every request the real client sends to that list. The
+three guards above are not what stops an order here: there is no path to one.
+
+The session itself can place orders. It is read from the keychain once per tool call and held
+only for that call, and renewed the same way the command line renews it. Listing the tools touches
+no credential. Robinhood's `guide` beside a result, advice for a model that can trade, is left out.
+
+**What reaches Claude.** Tool results go to Claude as part of your conversation: account numbers,
+balances, holdings and orders across every linked account you ask about. A cursor holds a position
+in Robinhood's list: its own page cursor and a fingerprint of the row, not the row.
+
+`rhap mcp --http --port <PORT>` serves the same tools for your own Cloudflare Worker, which reaches
+it through your own Cloudflare Tunnel (cli-common's `connector/`). It binds 127.0.0.1 only, with no
+flag for another address, and refuses to start without a bearer token of 32 or more characters,
+from `RHAP_MCP_TOKEN` or the keychain item `mcp-http-token`, which `rhap mcp --new-token` makes
+from 256 random bits and replaces only with `--overwrite`. Every request must carry the token
+(compared in constant time) and a `Host` of `127.0.0.1` or `localhost`, and must not carry an
+`Origin`; there are no CORS headers. A copy of that token lives in your Worker as its
+`HOME_RHAP_TOKEN` secret. A leaked copy can read your accounts through these tools, and cannot
+place an order or obtain the Robinhood session.
+
+**Tool results also cross Cloudflare on this path**, through your tunnel and your Worker, on their
+way to Claude. Who holds what, and what a leaked token can do, is in the connector's
+[threat model](https://github.com/piekstra/cli-common/blob/main/connector/README.md#threat-model).
+
+To revoke the connector's access, run `rhap mcp --new-token --overwrite` and restart the server
+(`launchctl kickstart -k gui/$(id -u)/com.piekstra.rhap-mcp-http`); the old token works until the
+restart, and a token in `$RHAP_MCP_TOKEN` wins until you change it. To stop serving, run `launchctl
+bootout gui/$(id -u)/com.piekstra.rhap-mcp-http` and stop the tunnel.
 
 ## Real-money risk
 
@@ -80,4 +120,5 @@ $ op read 'op://Private/rhap/token-bundle' | rhap auth set-credential --stdin --
 ```
 
 `rhap auth logout` clears the session; `--forget` also drops the stored config
-(the OAuth client id).
+(the OAuth client id) and the connector token. A running `rhap mcp --http` keeps its connector
+token until it stops, and it prints what it could not reach.

@@ -145,6 +145,81 @@ A mutation is any tool the catalog does not annotate `readOnlyHint: true`,
 including the `review_*`/`preview_*` simulations and `delete_alert`/
 `mark_alerts_read`; see [`docs/api.md`](docs/api.md) §8.
 
+## Use with Claude
+
+`rhap mcp` serves five read-only tools to Claude over MCP. **No tool can place, change or cancel
+an order, exercise an option, move money or change a watchlist.** Those stay on this command line,
+behind their guards.
+
+| Tool | Answers |
+|---|---|
+| `rhap_accounts` | Your brokerage accounts and their numbers |
+| `rhap_portfolio` | One account's value by asset type and buying power, and its realized profit and loss if asked |
+| `rhap_positions` | One account's open positions of one kind |
+| `rhap_orders` | One account's orders of one kind, newest first |
+| `rhap_quotes` | Current quotes for up to 20 stock symbols |
+
+The account is never ambient here either: each tool takes it on each call, and `kind: crypto` takes
+the account's numeric `rhs_account_number`. Concise results drop nulls, empty values and links;
+`response_format: detailed` keeps them. What the tools return
+goes to Claude, including account numbers, balances, holdings and orders
+([`SECURITY.md`](SECURITY.md)).
+
+**Claude Code.** `rhap auth login` first: the server reads the session from the keychain. Then
+add the `robinhood-agent-trading-cli` plugin from the
+[piekstra plugin marketplace](https://github.com/piekstra/claude-plugins):
+
+```console
+$ claude plugin marketplace add piekstra/claude-plugins
+$ claude plugin install robinhood-agent-trading-cli@piekstra-plugins
+```
+
+or register the server yourself:
+
+```console
+$ claude mcp add rhap -- rhap mcp
+```
+
+**Claude Desktop.** Run `rhap auth login` in a terminal, then download `rhap-<version>.mcpb` from
+the [latest release](https://github.com/piekstra/robinhood-agent-trading-cli/releases/latest) and
+open it. It asks for nothing: the bundled `rhap` reads the session your installed `rhap` stored,
+and renews it. On macOS the bundled binary is a different program to the keychain, so its first
+call raises a keychain prompt for each `piekstra.rhap` item it reads; choose **Always Allow**, or
+every call will ask again.
+
+Any other MCP client that launches a local server can run `rhap mcp`.
+
+**Claude on the web and mobile.** claude.ai reaches tools through a remote connector. `rhap` keeps
+your session on your computer, so it serves the same tools from your computer to a connector you
+deploy into your own Cloudflare account:
+
+```console
+$ rhap mcp --new-token            # once: a bearer token, saved in the keychain and printed for the Worker
+$ rhap mcp --http --port 8773     # serve on 127.0.0.1 only
+```
+
+`--http` takes the token from `$RHAP_MCP_TOKEN` if it is set, and otherwise from the keychain.
+`rhap mcp --new-token --overwrite` replaces a saved one.
+The connector, [cli-common's `connector/`](https://github.com/piekstra/cli-common/tree/main/connector#tools-from-your-computer-home-modules),
+reaches that port through a Cloudflare Tunnel in your account; its README walks through the
+tunnel, the VPC service, a launchd agent that keeps the server running, and the `HOME_RHAP_TOKEN`
+secret, with the threat model. `--http` binds 127.0.0.1 only, refuses to start without the token,
+refuses any request whose `Host` is not loopback or that carries an `Origin`, and serves only
+read-only tools, which is all `rhap mcp` has. Tool results pass through Cloudflare and reach
+Claude. While the computer sleeps, the tools answer that it is offline.
+`rhap auth logout --forget` removes the session and this bearer token.
+
+There is no `self-update`, so a new binary comes from `make install`. Restart the server after
+one: a running server keeps the old code, and its launchd agent restarts it only when it exits. Its
+start line names the version.
+
+```console
+$ launchctl kickstart -k gui/$(id -u)/com.piekstra.rhap-mcp-http
+```
+
+`make install` does not reach a Claude Desktop extension, which runs its own copy. Install the new
+release's `.mcpb` too.
+
 ## Exit codes
 
 `0` ok · `2` usage · `3` auth · `4` not found · `5` upstream · `6` confirmation

@@ -51,8 +51,8 @@ pub fn login(
     let lock = RefreshLock::for_binary(BIN)?;
     lock.before_signin()?;
 
-    let http = pk_cli_http::client("rhap", env!("CARGO_PKG_VERSION"))?;
-    let endpoints = discovery::discover(&http)?;
+    let endpoints = discovery::discover(&oauth::discovery_client()?)?;
+    let http = oauth::credential_client()?;
     let registration_endpoint = endpoints.registration_endpoint.clone().ok_or_else(|| {
         CliError::Upstream(
             "the authorization server advertises no registration_endpoint — cannot register a \
@@ -182,7 +182,7 @@ pub fn status(common: &CommonArgs, creds: &CredentialStore, verify: bool) -> Res
 }
 
 /// `auth logout` — drop the session; `--forget` also clears the stored config
-/// (the OAuth client id).
+/// (the OAuth client id) and the connector token of `rhap mcp --http`.
 pub fn logout(
     common: &CommonArgs,
     store: &ConfigStore,
@@ -193,14 +193,29 @@ pub fn logout(
     // store the session again behind it.
     RefreshLock::forget_for_binary(BIN, || creds.delete(crate::config::KEYCHAIN_TOKENS))?;
     if forget {
+        // Nothing records whether `mcp --new-token` ran, so this is ungated: a keyring that is
+        // not running, or a prompt declined, must not leave the config behind it.
+        let connector = creds.delete(pk_cli_mcp::HTTP_TOKEN_ACCOUNT);
         store.clear()?;
+        connector.map_err(connector_token_stays)?;
         if !common.quiet {
-            eprintln!("session cleared; stored config (client id) removed");
+            eprintln!(
+                "session cleared; stored config (client id) removed; any connector token removed"
+            );
+            eprintln!("{}", pk_cli_mcp::stop_note(BIN));
         }
     } else if !common.quiet {
         eprintln!("session cleared. The OAuth client id stays in config for the next login.");
     }
     Ok(())
+}
+
+/// What a failed token delete still leaves true. Nothing, if `mcp --new-token` never ran here.
+fn connector_token_stays(failure: CliError) -> CliError {
+    CliError::Keychain(format!(
+        "the session and config are cleared, but the connector token of `{BIN} mcp --http` could \
+         not be removed, if there is one: {failure}"
+    ))
 }
 
 /// `auth set-credential` — raw keychain write of a token bundle (rotation /
