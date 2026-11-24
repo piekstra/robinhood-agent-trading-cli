@@ -169,9 +169,12 @@ jobs:
           pattern: bin-*
           path: bin
           merge-multiple: true
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22
+          # Nothing is installed from a lockfile; a cache could only be
+          # poisoned.
+          package-manager-cache: false
       # The `versions` job has already held the manifest to Cargo.toml and
       # the tag.
       - name: Assemble, validate and pack
@@ -180,7 +183,7 @@ jobs:
           version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
           stage="$RUNNER_TEMP/rhap"
           mkdir -p "$stage/server/linux"
-          cp packaging/mcpb/manifest.json LICENSE-MIT LICENSE-APACHE "$stage/"
+          cp packaging/mcpb/manifest.json LICENSE "$stage/"
           cp bin/universal-apple-darwin/rhap "$stage/server/rhap"
           cp bin/x86_64-pc-windows-msvc/rhap.exe "$stage/server/rhap.exe"
           cp bin/x86_64-unknown-linux-gnu/rhap "$stage/server/linux/rhap"

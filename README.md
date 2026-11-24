@@ -20,7 +20,7 @@ except that `self-update` is deliberately absent (see AGENTS.md).
 
 > [!CAUTION]
 > **Use at your own risk.** This software is provided as is, without warranty
-> of any kind (see the licenses). You are responsible for every order it
+> of any kind (see the license). You are responsible for every order it
 > sends on your account. Unofficial; not affiliated with or endorsed by
 > Robinhood Markets, Inc.
 
@@ -239,4 +239,6 @@ token-refresh lock past a 75-second wait, in which case nothing was sent.
 
 ## License
 
-Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE).
+Copyright (C) 2026 Caleb Piekstra. Licensed under the GNU Affero General Public
+License, version 3 only (AGPL-3.0-only); see [LICENSE](LICENSE). Releases up to
+and including v0.4.0 were published under MIT OR Apache-2.0.
